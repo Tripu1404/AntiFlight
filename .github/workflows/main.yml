@@ -1,0 +1,47 @@
+name: Build Nukkit Plugin
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Clonar el repositorio
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2️⃣ Configurar Java 17 (recomendado para Nukkit)
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # 3️⃣ Descargar Nukkit (última versión estable desde GitHub)
+      - name: Download Nukkit
+        run: |
+          mkdir libs
+          wget -O libs/nukkit.jar https://repo.opencollab.dev/maven-snapshots/cn/nukkit/nukkit/1.0-SNAPSHOT/nukkit-1.0-20251001.065813-1220.jar
+      # 4️⃣ Compilar el plugin
+      - name: Compile plugin
+        run: |
+          mkdir -p build/classes
+          javac -cp "libs/nukkit.jar" -d build/classes $(find src/main/java -name "*.java")
+
+      # 5️⃣ Empaquetar en .jar (plugin listo)
+      - name: Package plugin
+        run: |
+          mkdir -p build/jar
+          jar cvf build/jar/FlightCheck.jar -C build/classes . -C src/main/resources .
+
+      # 6️⃣ Guardar el artefacto compilado (descargable desde GitHub)
+      - name: Upload compiled plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlightCheck
+          path: build/jar/FlightCheck.jar
