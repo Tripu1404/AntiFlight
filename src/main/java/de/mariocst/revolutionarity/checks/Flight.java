@@ -1,7 +1,6 @@
 package de.mariocst.revolutionarity.checks;
 
 import cn.nukkit.Player;
-import cn.nukkit.Server;
 import cn.nukkit.event.EventHandler;
 import cn.nukkit.event.Listener;
 import cn.nukkit.event.player.PlayerMoveEvent;
@@ -25,37 +24,48 @@ public class Flight extends PluginBase implements Listener {
             return;
         }
 
-        // --- Verificaciones Vanilla ---
-        boolean hasElytra = player.isGliding();
-        boolean hasLevit = player.hasEffect(Effect.LEVITATION);
-        boolean hasSlowFall = player.hasEffect(Effect.SLOW_FALLING);
-        boolean usingRiptide = player.isUsingRiptide();
-
-        // Si tiene cualquiera de estas condiciones, no se considera vuelo ilegal
-        if (hasElytra || hasLevit || hasSlowFall || usingRiptide) {
+        // Elytra
+        if (player.isGliding()) {
+            if (event.getTo().getY() > event.getFrom().getY() + 0.5) {
+                event.setCancelled(true);
+                getLogger().info(player.getName() + " intentó volar con Elytra ilegal.");
+            }
             return;
         }
 
-        // --- Detección de vuelo ilegal ---
+        // Caída lenta
+        if (player.hasEffect(Effect.SLOW_FALLING)) {
+            if (event.getTo().getY() > event.getFrom().getY()) {
+                event.setCancelled(true);
+                getLogger().info(player.getName() + " intentó subir con Slow Falling ilegal.");
+            }
+            return;
+        }
+
+        // Levitation
+        if (player.hasEffect(Effect.LEVITATION)) {
+            double dx = event.getTo().getX() - event.getFrom().getX();
+            double dz = event.getTo().getZ() - event.getFrom().getZ();
+            double horizontalSpeed = Math.sqrt(dx*dx + dz*dz);
+            if (horizontalSpeed > 0.5) {
+                event.setCancelled(true);
+                getLogger().info(player.getName() + " se movió demasiado rápido con Levitation.");
+            }
+            return;
+        }
+
+        // Riptide aproximado (solo agua + tridente con Riptide)
+        if (player.isSwimming() && player.getInventory().getItemInHand() != null
+                && player.getInventory().getItemInHand().hasEnchantment(28)) { 
+            return;
+        }
+
+        // Detección de vuelo ilegal normal
         double fromY = event.getFrom().getY();
         double toY = event.getTo().getY();
-        double deltaY = toY - fromY;
-
-        // Si el jugador está sobre el suelo, no pasa nada
-        if (player.isOnGround()) {
-            player.getLevel().getBlock(player.getPosition());
-            return;
-        }
-
-        // Si se mueve hacia arriba sin razón aparente (sin efectos ni elytra)
-        if (deltaY > 0.15 && !player.isSwimming() && !player.isInsideOfWater()) {
-            // Cancelamos el movimiento y lo detenemos en su posición actual
+        if (toY - fromY > 0.15 && !player.isSwimming() && !player.isInsideOfWater()) {
             event.setCancelled(true);
-
-            // Opcional: mensaje debug (puedes quitarlo)
-            if (Server.getInstance().isDebug()) {
-                player.sendActionBar("§cVuelo ilegal cancelado.");
-            }
+            getLogger().info(player.getName() + " intento de vuelo ilegal.");
         }
     }
 }
