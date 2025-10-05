@@ -14,7 +14,6 @@ import java.util.UUID;
 
 public class Flight extends PluginBase implements Listener {
 
-    private final HashMap<Player, double[]> lastGroundPos = new HashMap<>();
     private final HashMap<UUID, Long> riptideBypass = new HashMap<>();
     private final HashMap<UUID, Long> elytraBoost = new HashMap<>();
 
@@ -23,22 +22,24 @@ public class Flight extends PluginBase implements Listener {
         getServer().getPluginManager().registerEvents(this, this);
     }
 
+    // Riptide y Elytra boost
     @EventHandler
     public void onRightClick(PlayerInteractEvent event) {
         Player player = event.getPlayer();
         Item item = event.getItem();
 
-        // Riptide en agua
+        // Riptide en agua (1.8s)
         if (item != null && item.getId() == Item.TRIDENT && item.hasEnchantment(30)) {
             if (player.isInsideOfWater() || player.isSwimming()) {
                 riptideBypass.put(player.getUniqueId(), System.currentTimeMillis() + 1800);
             }
         }
 
-        // Elytra boost con cohete (ID 401)
+        // Elytra boost con cohete (ID 401, 5s)
         if (item != null && item.getId() == 401) {
-            if (player.getInventory().getChestplate() != null && player.getInventory().getChestplate().getId() == Item.ELYTRA) {
-                elytraBoost.put(player.getUniqueId(), System.currentTimeMillis() + 5000); // 5 segundos
+            if (player.getInventory().getChestplate() != null &&
+                player.getInventory().getChestplate().getId() == Item.ELYTRA) {
+                elytraBoost.put(player.getUniqueId(), System.currentTimeMillis() + 5000);
             }
         }
     }
@@ -58,30 +59,10 @@ public class Flight extends PluginBase implements Listener {
         if (bypassTime != null && bypassTime > System.currentTimeMillis()) return;
         else if (bypassTime != null && bypassTime <= System.currentTimeMillis()) riptideBypass.remove(player.getUniqueId());
 
-        double fromX = event.getFrom().getX();
-        double fromY = event.getFrom().getY();
-        double fromZ = event.getFrom().getZ();
+        double deltaY = event.getTo().getY() - event.getFrom().getY();
 
-        double toX = event.getTo().getX();
-        double toY = event.getTo().getY();
-        double toZ = event.getTo().getZ();
-
-        double dx = toX - fromX;
-        double dz = toZ - fromZ;
-        double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
-        double deltaY = toY - fromY;
-
-        // Actualizar última posición en el suelo
-        if (player.isOnGround()) {
-            lastGroundPos.put(player, new double[]{toX, toY, toZ});
-            return;
-        }
-
-        // Saltos normales
-        if (deltaY > 0 && deltaY <= 0.42 && horizontalDistance <= 0.5) return;
-
-        // Caídas naturales -> **no cancelar para preservar daño**
-        if (deltaY < 0 && Math.abs(deltaY) <= 0.78 && horizontalDistance <= 0.5) return;
+        // Ignorar caída hacia abajo completamente
+        if (deltaY < 0) return;
 
         // Elytra puesta pero no planeando
         if (player.getInventory().getChestplate() != null &&
@@ -97,13 +78,17 @@ public class Flight extends PluginBase implements Listener {
                 maxVertical = 1.0;
             }
 
-            if (horizontalDistance > maxHorizontal || Math.abs(deltaY) > maxVertical) {
+            double dx = event.getTo().getX() - event.getFrom().getX();
+            double dz = event.getTo().getZ() - event.getFrom().getZ();
+            double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
+
+            if (horizontalDistance > maxHorizontal || deltaY > maxVertical) {
                 event.setCancelled(true);
                 return;
             }
         }
 
-        // Movimiento ilegal detectado solo si no Elytra, sin boost y sin Riptide
+        // Movimiento ilegal detectado (fly sin Elytra, sin Riptide, sin efectos)
         if (!player.isGliding() &&
             (player.getInventory().getChestplate() == null || player.getInventory().getChestplate().getId() != Item.ELYTRA)) {
             event.setCancelled(true);
