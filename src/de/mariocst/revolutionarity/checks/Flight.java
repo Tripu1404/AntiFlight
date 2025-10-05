@@ -23,22 +23,22 @@ public class Flight extends PluginBase implements Listener {
         getServer().getPluginManager().registerEvents(this, this);
     }
 
-    // Riptide: activar bypass temporal de 1.8s al hacer click derecho en agua
     @EventHandler
     public void onRightClick(PlayerInteractEvent event) {
         Player player = event.getPlayer();
         Item item = event.getItem();
 
+        // Riptide en agua
         if (item != null && item.getId() == Item.TRIDENT && item.hasEnchantment(30)) {
             if (player.isInsideOfWater() || player.isSwimming()) {
                 riptideBypass.put(player.getUniqueId(), System.currentTimeMillis() + 1800);
             }
         }
 
-        // Elytra: activar boost temporal al usar cohete (ID 401)
+        // Elytra boost con cohete (ID 401)
         if (item != null && item.getId() == 401) {
-            if (player.isGliding()) {
-                elytraBoost.put(player.getUniqueId(), System.currentTimeMillis() + 5000); // 5 segundos
+            if (player.getInventory().getChestplate() != null && player.getInventory().getChestplate().getId() == Item.ELYTRA) {
+                elytraBoost.put(player.getUniqueId(), System.currentTimeMillis() + 5000);
             }
         }
     }
@@ -50,9 +50,6 @@ public class Flight extends PluginBase implements Listener {
         // Ignorar creativo, spectator o vuelo permitido
         if (player.isCreative() || player.isSpectator() || player.getAllowFlight()) return;
 
-        // Elytra: permitir planear siempre
-        if (player.isGliding()) return;
-
         // Levitation y Slow Falling
         if (player.hasEffect(Effect.LEVITATION) || player.hasEffect(Effect.SLOW_FALLING)) return;
 
@@ -61,7 +58,6 @@ public class Flight extends PluginBase implements Listener {
         if (bypassTime != null && bypassTime > System.currentTimeMillis()) return;
         else if (bypassTime != null && bypassTime <= System.currentTimeMillis()) riptideBypass.remove(player.getUniqueId());
 
-        // Validación de movimientos normales
         double fromX = event.getFrom().getX();
         double fromY = event.getFrom().getY();
         double fromZ = event.getFrom().getZ();
@@ -90,7 +86,32 @@ public class Flight extends PluginBase implements Listener {
         // Movimiento horizontal permitido en el aire
         if (horizontalDistance <= 0.5 && Math.abs(deltaY) <= 0.42) return;
 
+        // Elytra puesta pero no planeando (bypass detectado)
+        if (player.getInventory().getChestplate() != null &&
+            player.getInventory().getChestplate().getId() == Item.ELYTRA &&
+            !player.isGliding()) {
+
+            // Velocidad máxima vanilla sin cohete
+            double maxHorizontal = 0.6;
+            double maxVertical = 0.5;
+
+            // Si tiene boost de cohete activo, permitir más velocidad
+            Long boostTime = elytraBoost.get(player.getUniqueId());
+            if (boostTime != null && boostTime > System.currentTimeMillis()) {
+                maxHorizontal = 2.0; // boost
+                maxVertical = 1.0;
+            }
+
+            if (horizontalDistance > maxHorizontal || Math.abs(deltaY) > maxVertical) {
+                event.setCancelled(true);
+                return;
+            }
+        }
+
         // Movimiento ilegal detectado (fly sin Elytra, sin Riptide, sin efectos)
-        event.setCancelled(true);
+        if (!player.isGliding() &&
+            (player.getInventory().getChestplate() == null || player.getInventory().getChestplate().getId() != Item.ELYTRA)) {
+            event.setCancelled(true);
+        }
     }
 }
