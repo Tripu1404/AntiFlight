@@ -17,6 +17,7 @@ public class Flight extends PluginBase implements Listener {
     private final HashMap<Player, double[]> lastGroundPos = new HashMap<>();
     private final HashMap<UUID, Long> riptideBypass = new HashMap<>();
     private final HashMap<UUID, Long> elytraBoost = new HashMap<>();
+    private final HashMap<UUID, Long> elytraGrace = new HashMap<>();
 
     @Override
     public void onEnable() {
@@ -50,12 +51,29 @@ public class Flight extends PluginBase implements Listener {
         // Ignorar creativo, spectator o vuelo permitido
         if (player.isCreative() || player.isSpectator() || player.getAllowFlight()) return;
 
-        // Elytra: solo si está puesta y tiene boost reciente
+        // Elytra: grace period y boost
         if (player.isGliding()) {
-            Long boostTime = elytraBoost.get(player.getUniqueId());
-            if (boostTime == null || boostTime < System.currentTimeMillis()) {
-                event.setCancelled(true);
-                return;
+            UUID uuid = player.getUniqueId();
+
+            // Grace period de 1 segundo si acaba de empezar a planear
+            if (!elytraGrace.containsKey(uuid)) {
+                elytraGrace.put(uuid, System.currentTimeMillis() + 1000);
+            }
+
+            Long graceTime = elytraGrace.get(uuid);
+            Long boostTime = elytraBoost.get(uuid);
+
+            // Permitir planear siempre, pero velocidad solo con boost activo
+            if ((boostTime == null || boostTime < System.currentTimeMillis()) && graceTime != null && graceTime < System.currentTimeMillis()) {
+                // Cancelar si intenta moverse rápido sin boost
+                double dx = event.getTo().getX() - event.getFrom().getX();
+                double dz = event.getTo().getZ() - event.getFrom().getZ();
+                double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
+
+                if (horizontalDistance > 0.5) {
+                    event.setCancelled(true);
+                    return;
+                }
             }
         }
 
