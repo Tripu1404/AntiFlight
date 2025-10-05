@@ -19,53 +19,29 @@ public class Flight extends PluginBase implements Listener {
     public void onMove(PlayerMoveEvent event) {
         Player player = event.getPlayer();
 
-        // No revisar si el jugador tiene permisos de vuelo o está en modo creativo
-        if (player.isCreative() || player.isSpectator() || player.getAllowFlight()) {
-            return;
-        }
+        // Ignorar si tiene permisos de vuelo o modo creativo
+        if (player.isCreative() || player.isSpectator() || player.getAllowFlight()) return;
 
-        // Elytra
-        if (player.isGliding()) {
-            if (event.getTo().getY() > event.getFrom().getY() + 0.5) {
-                event.setCancelled(true);
-                getLogger().info(player.getName() + " intentó volar con Elytra ilegal.");
-            }
-            return;
-        }
+        // Elytra, Levitation o Slow Falling permiten movimiento
+        if (player.isGliding() || player.hasEffect(Effect.LEVITATION) || player.hasEffect(Effect.SLOW_FALLING)) return;
 
-        // Caída lenta
-        if (player.hasEffect(Effect.SLOW_FALLING)) {
-            if (event.getTo().getY() > event.getFrom().getY()) {
-                event.setCancelled(true);
-                getLogger().info(player.getName() + " intentó subir con Slow Falling ilegal.");
-            }
-            return;
-        }
-
-        // Levitation
-        if (player.hasEffect(Effect.LEVITATION)) {
-            double dx = event.getTo().getX() - event.getFrom().getX();
-            double dz = event.getTo().getZ() - event.getFrom().getZ();
-            double horizontalSpeed = Math.sqrt(dx*dx + dz*dz);
-            if (horizontalSpeed > 0.5) {
-                event.setCancelled(true);
-                getLogger().info(player.getName() + " se movió demasiado rápido con Levitation.");
-            }
-            return;
-        }
-
-        // Riptide aproximado (solo agua + tridente con Riptide)
+        // Riptide aproximado (agua + tridente con Riptide)
         if (player.isSwimming() && player.getInventory().getItemInHand() != null
-                && player.getInventory().getItemInHand().hasEnchantment(28)) { 
+                && player.getInventory().getItemInHand().hasEnchantment(28)) {
             return;
         }
 
-        // Detección de vuelo ilegal normal
-        double fromY = event.getFrom().getY();
-        double toY = event.getTo().getY();
-        if (toY - fromY > 0.15 && !player.isSwimming() && !player.isInsideOfWater()) {
-            event.setCancelled(true);
-            getLogger().info(player.getName() + " intento de vuelo ilegal.");
+        // Solo verificar si está en el aire y no estaba en el suelo
+        if (!player.isOnGround()) {
+            double fromY = event.getFrom().getY();
+            double toY = event.getTo().getY();
+            double deltaY = toY - fromY;
+
+            // Altura máxima de salto vanilla ≈ 0.42 bloques
+            if (deltaY > 0.42) {
+                event.setCancelled(true);
+                getLogger().info(player.getName() + " intentó vuelo ilegal.");
+            }
         }
     }
 }
