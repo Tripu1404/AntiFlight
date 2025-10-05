@@ -3,22 +3,40 @@ package de.mariocst.revolutionarity.checks;
 import cn.nukkit.Player;
 import cn.nukkit.event.EventHandler;
 import cn.nukkit.event.Listener;
+import cn.nukkit.event.player.PlayerInteractEvent;
 import cn.nukkit.event.player.PlayerMoveEvent;
 import cn.nukkit.item.Item;
 import cn.nukkit.potion.Effect;
 import cn.nukkit.plugin.PluginBase;
 
 import java.util.HashMap;
+import java.util.UUID;
 
 public class Flight extends PluginBase implements Listener {
 
-    // Última posición en el suelo
     private final HashMap<Player, double[]> lastGroundPos = new HashMap<>();
+
+    // Bypass temporal de Riptide: player -> timestamp de expiración
+    private final HashMap<UUID, Long> riptideBypass = new HashMap<>();
 
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
         getLogger().info("FlightCheck habilitado correctamente.");
+    }
+
+    // Activar bypass temporal de 1.3 segundos al usar Riptide en condiciones válidas
+    @EventHandler
+    public void onRightClick(PlayerInteractEvent event) {
+        Player player = event.getPlayer();
+        Item item = event.getItem();
+
+        if (item != null && item.getId() == Item.TRIDENT && item.hasEnchantment(30)) {
+            // Solo activar si está lloviendo o el jugador toca agua
+            if (player.getLevel().isRaining() || player.isInsideOfWater() || player.isSwimming()) {
+                riptideBypass.put(player.getUniqueId(), System.currentTimeMillis() + 1300);
+            }
+        }
     }
 
     @EventHandler
@@ -28,13 +46,18 @@ public class Flight extends PluginBase implements Listener {
         // Ignorar creativo, spectator o vuelo permitido
         if (player.isCreative() || player.isSpectator() || player.getAllowFlight()) return;
 
-        // Elytra, Levitation o Slow Falling permiten movimiento
-        if (player.isGliding() || player.hasEffect(Effect.LEVITATION) || player.hasEffect(Effect.SLOW_FALLING)) return;
+        // Elytra: solo si la lleva puesta y está planando
+        if (player.isGliding()) return;
 
-        // Riptide: permitir cualquier movimiento si jugador tiene tridente con Riptide en mano
-        Item item = player.getInventory().getItemInHand();
-        if (item != null && item.getId() == Item.TRIDENT && item.hasEnchantment(28)) {
-            return;
+        // Levitation y Slow Falling
+        if (player.hasEffect(Effect.LEVITATION) || player.hasEffect(Effect.SLOW_FALLING)) return;
+
+        // Riptide temporal
+        Long bypassTime = riptideBypass.get(player.getUniqueId());
+        if (bypassTime != null && bypassTime > System.currentTimeMillis()) {
+            return; // Permitir movimiento durante el bypass
+        } else if (bypassTime != null && bypassTime <= System.currentTimeMillis()) {
+            riptideBypass.remove(player.getUniqueId()); // Expiró el bypass
         }
 
         double fromX = event.getFrom().getX();
@@ -65,7 +88,7 @@ public class Flight extends PluginBase implements Listener {
         // Movimiento horizontal permitido en el aire
         if (horizontalDistance <= 0.5 && Math.abs(deltaY) <= 0.42) return;
 
-        // Si excede límites, cancelar
+        // Movimiento ilegal detectado
         event.setCancelled(true);
         getLogger().info(player.getName() + " intentó vuelo ilegal.");
     }
