@@ -7,7 +7,12 @@ import cn.nukkit.event.player.PlayerMoveEvent;
 import cn.nukkit.potion.Effect;
 import cn.nukkit.plugin.PluginBase;
 
+import java.util.HashMap;
+
 public class Flight extends PluginBase implements Listener {
+
+    // Guardar la última posición en el suelo
+    private final HashMap<Player, Double> lastOnGroundY = new HashMap<>();
 
     @Override
     public void onEnable() {
@@ -19,7 +24,7 @@ public class Flight extends PluginBase implements Listener {
     public void onMove(PlayerMoveEvent event) {
         Player player = event.getPlayer();
 
-        // Ignorar si tiene permisos de vuelo o modo creativo
+        // Ignorar jugadores con permisos de vuelo, creativo o spectator
         if (player.isCreative() || player.isSpectator() || player.getAllowFlight()) return;
 
         // Elytra, Levitation o Slow Falling permiten movimiento
@@ -31,16 +36,26 @@ public class Flight extends PluginBase implements Listener {
             return;
         }
 
-        // Solo verificar si está en el aire y no estaba en el suelo
-        if (!player.isOnGround()) {
-            double fromY = event.getFrom().getY();
-            double toY = event.getTo().getY();
-            double deltaY = toY - fromY;
+        double fromY = event.getFrom().getY();
+        double toY = event.getTo().getY();
+        double deltaY = toY - fromY;
 
-            // Altura máxima de salto vanilla ≈ 0.42 bloques
-            if (deltaY > 0.42) {
+        // Saltos normales
+        if (player.isOnGround()) {
+            lastOnGroundY.put(player, player.getY());
+            return;
+        }
+
+        // Permitir salto vanilla
+        if (deltaY <= 0.42) return;
+
+        // Detectar vuelo ilegal (Fly)
+        if (lastOnGroundY.containsKey(player)) {
+            double maxAllowed = lastOnGroundY.get(player) + 0.42;
+            if (toY > maxAllowed) {
                 event.setCancelled(true);
-                getLogger().info(player.getName() + " intentó vuelo ilegal.");
+                getLogger().info(player.getName() + " intentó vuelo ilegal (Fly).");
+                return;
             }
         }
     }
