@@ -38,7 +38,7 @@ public class Flight extends PluginBase implements Listener {
         // Elytra boost con cohete (ID 401)
         if (item != null && item.getId() == 401) {
             if (player.getInventory().getChestplate() != null && player.getInventory().getChestplate().getId() == Item.ELYTRA) {
-                elytraBoost.put(player.getUniqueId(), System.currentTimeMillis() + 5000);
+                elytraBoost.put(player.getUniqueId(), System.currentTimeMillis() + 5000); // 5 segundos
             }
         }
     }
@@ -80,25 +80,20 @@ public class Flight extends PluginBase implements Listener {
         // Saltos normales
         if (deltaY > 0 && deltaY <= 0.42 && horizontalDistance <= 0.5) return;
 
-        // Caídas naturales
+        // Caídas naturales -> **no cancelar para preservar daño**
         if (deltaY < 0 && Math.abs(deltaY) <= 0.78 && horizontalDistance <= 0.5) return;
 
-        // Movimiento horizontal permitido en el aire
-        if (horizontalDistance <= 0.5 && Math.abs(deltaY) <= 0.42) return;
-
-        // Elytra puesta pero no planeando (bypass detectado)
+        // Elytra puesta pero no planeando
         if (player.getInventory().getChestplate() != null &&
             player.getInventory().getChestplate().getId() == Item.ELYTRA &&
             !player.isGliding()) {
 
-            // Velocidad máxima vanilla sin cohete
             double maxHorizontal = 0.6;
             double maxVertical = 0.5;
 
-            // Si tiene boost de cohete activo, permitir más velocidad
             Long boostTime = elytraBoost.get(player.getUniqueId());
             if (boostTime != null && boostTime > System.currentTimeMillis()) {
-                maxHorizontal = 2.0; // boost
+                maxHorizontal = 2.0;
                 maxVertical = 1.0;
             }
 
@@ -108,7 +103,7 @@ public class Flight extends PluginBase implements Listener {
             }
         }
 
-        // Movimiento ilegal detectado (fly sin Elytra, sin Riptide, sin efectos)
+        // Movimiento ilegal detectado solo si no Elytra, sin boost y sin Riptide
         if (!player.isGliding() &&
             (player.getInventory().getChestplate() == null || player.getInventory().getChestplate().getId() != Item.ELYTRA)) {
             event.setCancelled(true);
