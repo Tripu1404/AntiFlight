@@ -6,12 +6,12 @@ import cn.nukkit.event.Listener;
 import cn.nukkit.event.player.PlayerMoveEvent;
 import cn.nukkit.potion.Effect;
 import cn.nukkit.plugin.PluginBase;
+import cn.nukkit.item.Item;
 
 import java.util.HashMap;
 
 public class Flight extends PluginBase implements Listener {
 
-    // Guardar la última posición en el suelo
     private final HashMap<Player, Double> lastOnGroundY = new HashMap<>();
 
     @Override
@@ -27,36 +27,41 @@ public class Flight extends PluginBase implements Listener {
         // Ignorar jugadores con permisos de vuelo, creativo o spectator
         if (player.isCreative() || player.isSpectator() || player.getAllowFlight()) return;
 
-        // Elytra, Levitation o Slow Falling permiten movimiento
-        if (player.isGliding() || player.hasEffect(Effect.LEVITATION) || player.hasEffect(Effect.SLOW_FALLING)) return;
+        // Elytra
+        if (player.isGliding()) return;
 
-        // Riptide aproximado (agua + tridente con Riptide)
-        if (player.isSwimming() && player.getInventory().getItemInHand() != null
-                && player.getInventory().getItemInHand().hasEnchantment(28)) {
-            return;
-        }
+        // Efectos especiales
+        if (player.hasEffect(Effect.LEVITATION) || player.hasEffect(Effect.SLOW_FALLING)) return;
+
+        // Riptide real: jugador en agua + tridente en mano con encantamiento Riptide
+        Item item = player.getInventory().getItemInHand();
+        if (player.isSwimming() && item != null && item.hasEnchantment(28)) return;
 
         double fromY = event.getFrom().getY();
         double toY = event.getTo().getY();
         double deltaY = toY - fromY;
 
-        // Saltos normales
+        double dx = event.getTo().getX() - event.getFrom().getX();
+        double dz = event.getTo().getZ() - event.getFrom().getZ();
+        double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
+
+        // Actualizar última posición en el suelo
         if (player.isOnGround()) {
             lastOnGroundY.put(player, player.getY());
             return;
         }
 
-        // Permitir salto vanilla
-        if (deltaY <= 0.42) return;
+        // Saltos normales
+        if (deltaY > 0 && deltaY <= 0.42 && horizontalDistance <= 0.3) return;
 
-        // Detectar vuelo ilegal (Fly)
-        if (lastOnGroundY.containsKey(player)) {
-            double maxAllowed = lastOnGroundY.get(player) + 0.42;
-            if (toY > maxAllowed) {
-                event.setCancelled(true);
-                getLogger().info(player.getName() + " intentó vuelo ilegal (Fly).");
-                return;
-            }
-        }
+        // Caídas naturales
+        if (deltaY < 0 && Math.abs(deltaY) <= 0.78 && horizontalDistance <= 0.3) return;
+
+        // Movimiento horizontal pequeño permitido
+        if (horizontalDistance <= 0.3 && Math.abs(deltaY) <= 0.42) return;
+
+        // Movimiento ilegal detectado (fly vertical u horizontal)
+        event.setCancelled(true);
+        getLogger().info(player.getName() + " intentó vuelo ilegal.");
     }
 }
