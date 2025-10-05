@@ -17,7 +17,6 @@ public class Flight extends PluginBase implements Listener {
     private final HashMap<Player, double[]> lastGroundPos = new HashMap<>();
     private final HashMap<UUID, Long> riptideBypass = new HashMap<>();
     private final HashMap<UUID, Long> elytraBoost = new HashMap<>();
-    private final HashMap<UUID, Long> elytraGrace = new HashMap<>();
 
     @Override
     public void onEnable() {
@@ -51,43 +50,18 @@ public class Flight extends PluginBase implements Listener {
         // Ignorar creativo, spectator o vuelo permitido
         if (player.isCreative() || player.isSpectator() || player.getAllowFlight()) return;
 
-        // Elytra: grace period y boost
-        if (player.isGliding()) {
-            UUID uuid = player.getUniqueId();
-
-            // Grace period de 1 segundo si acaba de empezar a planear
-            if (!elytraGrace.containsKey(uuid)) {
-                elytraGrace.put(uuid, System.currentTimeMillis() + 1000);
-            }
-
-            Long graceTime = elytraGrace.get(uuid);
-            Long boostTime = elytraBoost.get(uuid);
-
-            // Permitir planear siempre, pero velocidad solo con boost activo
-            if ((boostTime == null || boostTime < System.currentTimeMillis()) && graceTime != null && graceTime < System.currentTimeMillis()) {
-                // Cancelar si intenta moverse rápido sin boost
-                double dx = event.getTo().getX() - event.getFrom().getX();
-                double dz = event.getTo().getZ() - event.getFrom().getZ();
-                double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
-
-                if (horizontalDistance > 0.5) {
-                    event.setCancelled(true);
-                    return;
-                }
-            }
-        }
+        // Elytra: permitir planear siempre
+        if (player.isGliding()) return;
 
         // Levitation y Slow Falling
         if (player.hasEffect(Effect.LEVITATION) || player.hasEffect(Effect.SLOW_FALLING)) return;
 
         // Riptide temporal
         Long bypassTime = riptideBypass.get(player.getUniqueId());
-        if (bypassTime != null && bypassTime > System.currentTimeMillis()) {
-            return;
-        } else if (bypassTime != null && bypassTime <= System.currentTimeMillis()) {
-            riptideBypass.remove(player.getUniqueId());
-        }
+        if (bypassTime != null && bypassTime > System.currentTimeMillis()) return;
+        else if (bypassTime != null && bypassTime <= System.currentTimeMillis()) riptideBypass.remove(player.getUniqueId());
 
+        // Validación de movimientos normales
         double fromX = event.getFrom().getX();
         double fromY = event.getFrom().getY();
         double fromZ = event.getFrom().getZ();
@@ -116,7 +90,7 @@ public class Flight extends PluginBase implements Listener {
         // Movimiento horizontal permitido en el aire
         if (horizontalDistance <= 0.5 && Math.abs(deltaY) <= 0.42) return;
 
-        // Movimiento ilegal detectado
+        // Movimiento ilegal detectado (fly sin Elytra, sin Riptide, sin efectos)
         event.setCancelled(true);
     }
 }
