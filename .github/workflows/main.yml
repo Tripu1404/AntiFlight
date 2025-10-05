@@ -15,31 +15,35 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ Configurar Java 17 (recomendado para Nukkit)
+      # 2️⃣ Configurar Java 17
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      # 3️⃣ Descargar Nukkit (última versión estable desde GitHub)
+      # 3️⃣ Descargar Nukkit automáticamente
       - name: Download Nukkit
         run: |
           mkdir libs
           wget -O libs/nukkit.jar https://repo.opencollab.dev/maven-snapshots/cn/nukkit/nukkit/1.0-SNAPSHOT/nukkit-1.0-20251001.065813-1220.jar
-      # 4️⃣ Compilar el plugin
+
+      # 4️⃣ Compilar plugin
       - name: Compile plugin
         run: |
           mkdir -p build/classes
-          javac -cp "libs/nukkit.jar" -d build/classes $(find src/main/java -name "*.java")
+          javac -cp "libs/nukkit.jar" -d build/classes $(find src -name "*.java")
 
-      # 5️⃣ Empaquetar en .jar (plugin listo)
+      # 5️⃣ Empaquetar en JAR (plugin listo)
       - name: Package plugin
         run: |
           mkdir -p build/jar
-          jar cvf build/jar/FlightCheck.jar -C build/classes . -C src/main/resources .
+          # Empaquetar todas las clases
+          jar cvf build/jar/FlightCheck.jar -C build/classes .
+          # Agregar plugin.yml desde la raíz
+          jar uf build/jar/FlightCheck.jar plugin.yml
 
-      # 6️⃣ Guardar el artefacto compilado (descargable desde GitHub)
+      # 6️⃣ Subir el artefacto compilado
       - name: Upload compiled plugin
         uses: actions/upload-artifact@v4
         with:
