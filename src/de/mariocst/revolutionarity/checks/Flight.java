@@ -6,7 +6,6 @@ import cn.nukkit.event.Listener;
 import cn.nukkit.event.player.PlayerInteractEvent;
 import cn.nukkit.event.player.PlayerMoveEvent;
 import cn.nukkit.item.Item;
-import cn.nukkit.item.ItemFireworkRocket;
 import cn.nukkit.potion.Effect;
 import cn.nukkit.plugin.PluginBase;
 
@@ -36,8 +35,8 @@ public class Flight extends PluginBase implements Listener {
             }
         }
 
-        // Elytra: activar boost temporal al usar cohete
-        if (item instanceof ItemFireworkRocket) {
+        // Elytra: activar boost temporal al usar cohete (ID 401)
+        if (item != null && item.getId() == 401) {
             if (player.isGliding()) {
                 elytraBoost.put(player.getUniqueId(), System.currentTimeMillis() + 5000); // 5 segundos
             }
