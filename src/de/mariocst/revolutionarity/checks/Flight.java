@@ -15,8 +15,6 @@ import java.util.UUID;
 public class Flight extends PluginBase implements Listener {
 
     private final HashMap<Player, double[]> lastGroundPos = new HashMap<>();
-
-    // Bypass temporal de Riptide: player -> timestamp de expiración
     private final HashMap<UUID, Long> riptideBypass = new HashMap<>();
 
     @Override
@@ -25,16 +23,16 @@ public class Flight extends PluginBase implements Listener {
         getLogger().info("FlightCheck habilitado correctamente.");
     }
 
-    // Activar bypass temporal de 1.3 segundos al usar Riptide en condiciones válidas
+    // Activar bypass temporal de 1.8 segundos al usar Riptide en agua
     @EventHandler
     public void onRightClick(PlayerInteractEvent event) {
         Player player = event.getPlayer();
         Item item = event.getItem();
 
         if (item != null && item.getId() == Item.TRIDENT && item.hasEnchantment(30)) {
-            // Solo activar si está lloviendo o el jugador toca agua
-            if (player.getLevel().isRaining() || player.isInsideOfWater() || player.isSwimming()) {
-                riptideBypass.put(player.getUniqueId(), System.currentTimeMillis() + 1300);
+            // Solo activar si el jugador está en contacto con agua
+            if (player.isInsideOfWater() || player.isSwimming()) {
+                riptideBypass.put(player.getUniqueId(), System.currentTimeMillis() + 1800);
             }
         }
     }
