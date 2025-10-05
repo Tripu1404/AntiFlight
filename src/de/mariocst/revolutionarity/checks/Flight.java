@@ -6,6 +6,7 @@ import cn.nukkit.event.Listener;
 import cn.nukkit.event.player.PlayerInteractEvent;
 import cn.nukkit.event.player.PlayerMoveEvent;
 import cn.nukkit.item.Item;
+import cn.nukkit.item.ItemFireworkRocket;
 import cn.nukkit.potion.Effect;
 import cn.nukkit.plugin.PluginBase;
 
@@ -16,23 +17,29 @@ public class Flight extends PluginBase implements Listener {
 
     private final HashMap<Player, double[]> lastGroundPos = new HashMap<>();
     private final HashMap<UUID, Long> riptideBypass = new HashMap<>();
+    private final HashMap<UUID, Long> elytraBoost = new HashMap<>();
 
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("FlightCheck habilitado correctamente.");
     }
 
-    // Activar bypass temporal de 1.8 segundos al usar Riptide en agua
+    // Riptide: activar bypass temporal de 1.8s al hacer click derecho en agua
     @EventHandler
     public void onRightClick(PlayerInteractEvent event) {
         Player player = event.getPlayer();
         Item item = event.getItem();
 
         if (item != null && item.getId() == Item.TRIDENT && item.hasEnchantment(30)) {
-            // Solo activar si el jugador está en contacto con agua
             if (player.isInsideOfWater() || player.isSwimming()) {
                 riptideBypass.put(player.getUniqueId(), System.currentTimeMillis() + 1800);
+            }
+        }
+
+        // Elytra: activar boost temporal al usar cohete
+        if (item instanceof ItemFireworkRocket) {
+            if (player.isGliding()) {
+                elytraBoost.put(player.getUniqueId(), System.currentTimeMillis() + 5000); // 5 segundos
             }
         }
     }
@@ -44,8 +51,14 @@ public class Flight extends PluginBase implements Listener {
         // Ignorar creativo, spectator o vuelo permitido
         if (player.isCreative() || player.isSpectator() || player.getAllowFlight()) return;
 
-        // Elytra: solo si la lleva puesta y está planando
-        if (player.isGliding()) return;
+        // Elytra: solo si está puesta y tiene boost reciente
+        if (player.isGliding()) {
+            Long boostTime = elytraBoost.get(player.getUniqueId());
+            if (boostTime == null || boostTime < System.currentTimeMillis()) {
+                event.setCancelled(true);
+                return;
+            }
+        }
 
         // Levitation y Slow Falling
         if (player.hasEffect(Effect.LEVITATION) || player.hasEffect(Effect.SLOW_FALLING)) return;
@@ -53,9 +66,9 @@ public class Flight extends PluginBase implements Listener {
         // Riptide temporal
         Long bypassTime = riptideBypass.get(player.getUniqueId());
         if (bypassTime != null && bypassTime > System.currentTimeMillis()) {
-            return; // Permitir movimiento durante el bypass
+            return;
         } else if (bypassTime != null && bypassTime <= System.currentTimeMillis()) {
-            riptideBypass.remove(player.getUniqueId()); // Expiró el bypass
+            riptideBypass.remove(player.getUniqueId());
         }
 
         double fromX = event.getFrom().getX();
@@ -88,6 +101,5 @@ public class Flight extends PluginBase implements Listener {
 
         // Movimiento ilegal detectado
         event.setCancelled(true);
-        getLogger().info(player.getName() + " intentó vuelo ilegal.");
     }
 }
