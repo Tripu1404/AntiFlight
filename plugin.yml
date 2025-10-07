@@ -1,7 +1,6 @@
 name: FlightCheck
-main: de.mariocst.revolutionarity.checks.antimove
-version: 1.0.0
-api: ["1.0.13"]
-author: tripu1404
-description: Anti vuelo ilegal para Nukkit, compatible con Elytra, Riptide, Levitación y Caída Lenta.
-load: POSTWORLD
+main: de.mariocst.revolutionarity.checks.AntiMove
+version: 1.0
+api: ["1.0.0"]
+author: Tripu1404
+description: Anticheat que bloquea vuelo y velocidad ilegales
