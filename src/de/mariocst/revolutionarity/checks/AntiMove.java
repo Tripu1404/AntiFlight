@@ -1,4 +1,4 @@
-package com.tripu1404.anticheat;
+package de.mariocst.revolutionarity.checks;
 
 import cn.nukkit.Player;
 import cn.nukkit.event.EventHandler;
