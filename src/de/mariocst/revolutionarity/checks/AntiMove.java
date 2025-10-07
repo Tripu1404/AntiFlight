@@ -1,44 +1,55 @@
-package de.mariocst.revolutionarity.checks;
+package tripu1404.anticheatpatch;
 
 import cn.nukkit.Player;
-import cn.nukkit.event.EventHandler;
+import cn.nukkit.block.Block;
 import cn.nukkit.event.Listener;
-import cn.nukkit.event.player.PlayerInteractEvent;
+import cn.nukkit.event.EventHandler;
 import cn.nukkit.event.player.PlayerMoveEvent;
+import cn.nukkit.event.player.PlayerInteractEvent;
+import cn.nukkit.event.inventory.EnchantItemEvent;
+import cn.nukkit.event.inventory.InventoryTransactionEvent;
+import cn.nukkit.inventory.Inventory;
 import cn.nukkit.item.Item;
+import cn.nukkit.item.enchantment.Enchantment;
+import cn.nukkit.level.Level;
 import cn.nukkit.plugin.PluginBase;
-import cn.nukkit.potion.Effect;
-import cn.nukkit.math.Vector3;
+import cn.nukkit.utils.Vector3;
 
 import java.util.HashMap;
 import java.util.UUID;
 
-public class AntiMove extends PluginBase implements Listener {
+public class FlightCheck extends PluginBase implements Listener {
 
     private final HashMap<Player, double[]> lastGroundPos = new HashMap<>();
     private final HashMap<UUID, Long> riptideBypass = new HashMap<>();
     private final HashMap<UUID, Long> elytraBoost = new HashMap<>();
-    private final HashMap<UUID, Integer> speedViolationTicks = new HashMap<>();
 
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
     }
 
-    // --- Riptide y Elytra Boost ---
+    private boolean isInWaterOrLava(Player player) {
+        Level level = player.getLevel();
+        Vector3 pos = player.getPosition().floor();
+        Block block = level.getBlock(pos);
+        int id = block.getId();
+        return id == Block.WATER || id == Block.STILL_WATER || id == Block.LAVA || id == Block.STILL_LAVA;
+    }
+
     @EventHandler
     public void onRightClick(PlayerInteractEvent event) {
         Player player = event.getPlayer();
         Item item = event.getItem();
 
-        // Tridente con Riptide
+        // Riptide en agua
         if (item != null && item.getId() == Item.TRIDENT && item.hasEnchantment(30)) {
-            if (player.isInsideOfWater() || player.isSwimming()) {
+            if (isInWaterOrLava(player)) {
                 riptideBypass.put(player.getUniqueId(), System.currentTimeMillis() + 1800);
             }
         }
 
-        // Elytra + cohete (ID 401)
+        // Elytra boost con cohete (ID 401)
         if (item != null && item.getId() == 401) {
             if (player.getInventory().getChestplate() != null &&
                     player.getInventory().getChestplate().getId() == Item.ELYTRA) {
@@ -47,23 +58,17 @@ public class AntiMove extends PluginBase implements Listener {
         }
     }
 
-    // --- Control principal de movimiento ---
     @EventHandler
     public void onMove(PlayerMoveEvent event) {
         Player player = event.getPlayer();
 
-        // Ignorar creativo, espectador o vuelo permitido
         if (player.isCreative() || player.isSpectator() || player.getAllowFlight()) return;
+        if (player.hasEffect(cn.nukkit.potion.Effect.LEVITATION) ||
+            player.hasEffect(cn.nukkit.potion.Effect.SLOW_FALLING)) return;
 
-        // Ignorar efectos que alteran movimiento
-        if (player.hasEffect(Effect.LEVITATION) || player.hasEffect(Effect.SLOW_FALLING)) return;
-
-        UUID id = player.getUniqueId();
-
-        // Bypass temporal de Riptide
-        Long bypassTime = riptideBypass.get(id);
+        Long bypassTime = riptideBypass.get(player.getUniqueId());
         if (bypassTime != null && bypassTime > System.currentTimeMillis()) return;
-        else if (bypassTime != null && bypassTime <= System.currentTimeMillis()) riptideBypass.remove(id);
+        else if (bypassTime != null) riptideBypass.remove(player.getUniqueId());
 
         double fromX = event.getFrom().getX();
         double fromY = event.getFrom().getY();
@@ -75,70 +80,75 @@ public class AntiMove extends PluginBase implements Listener {
 
         double dx = toX - fromX;
         double dz = toZ - fromZ;
-        double dy = toY - fromY;
-
         double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
+        double deltaY = toY - fromY;
 
-        // Actualiza última posición en el suelo
-        if (player.isOnGround()) {
+        boolean onGround = player.onGround();
+
+        // Guardar última posición en suelo
+        if (onGround) {
             lastGroundPos.put(player, new double[]{toX, toY, toZ});
-        }
-
-        // --- ANTI-FLY ---
-        if (!player.isOnGround() && !player.isGliding()) {
-            // Si no se mueve horizontalmente mucho, puede ser salto normal
-            if (dy > 0 && dy <= 0.42 && horizontalDistance <= 0.5) return;
-            // Caída natural permitida
-            if (dy < 0 && Math.abs(dy) <= 0.78 && horizontalDistance <= 0.5) return;
-
-            // Elytra equipada pero no planeando
-            if (player.getInventory().getChestplate() != null &&
-                    player.getInventory().getChestplate().getId() == Item.ELYTRA &&
-                    !player.isGliding()) {
-
-                double maxHorizontal = 0.6;
-                double maxVertical = 0.5;
-
-                Long boostTime = elytraBoost.get(id);
-                if (boostTime != null && boostTime > System.currentTimeMillis()) {
-                    maxHorizontal = 2.0;
-                    maxVertical = 1.0;
-                }
-
-                if (horizontalDistance > maxHorizontal || Math.abs(dy) > maxVertical) {
-                    event.setTo(event.getFrom());
-                    player.setMotion(new Vector3(player.getMotion().x * 0.1, player.getMotion().y, player.getMotion().z * 0.1));
-                    return;
-                }
-            }
-
-            // Si sigue en el aire sin justificación → cancelar movimiento
-            event.setTo(event.getFrom());
-            player.setMotion(new Vector3(player.getMotion().x * 0.1, player.getMotion().y - 0.1, player.getMotion().z * 0.1));
             return;
         }
 
-        // --- ANTI-SPEED ---
-        double allowed = getAllowedHorizontalSpeed(player);
-        double margin = 0.05;
-        int currentViolations = speedViolationTicks.getOrDefault(id, 0);
+        // Saltos y caídas normales
+        if (deltaY > 0 && deltaY <= 0.42 && horizontalDistance <= 0.5) return;
+        if (deltaY < 0 && Math.abs(deltaY) <= 0.78 && horizontalDistance <= 0.5) return;
 
-        if (horizontalDistance > allowed * 1.5 + margin) {
-            currentViolations++;
-            event.setTo(event.getFrom());
-            player.setMotion(new Vector3(player.getMotion().x * 0.1, player.getMotion().y, player.getMotion().z * 0.1));
-            speedViolationTicks.put(id, currentViolations);
-        } else {
-            if (currentViolations > 0) speedViolationTicks.put(id, currentViolations - 1);
+        // Elytra con boost
+        if (player.getInventory().getChestplate() != null &&
+            player.getInventory().getChestplate().getId() == Item.ELYTRA &&
+            !player.isGliding()) {
+
+            double maxHorizontal = 0.6;
+            double maxVertical = 0.5;
+
+            Long boostTime = elytraBoost.get(player.getUniqueId());
+            if (boostTime != null && boostTime > System.currentTimeMillis()) {
+                maxHorizontal = 2.0;
+                maxVertical = 1.0;
+            }
+
+            if (horizontalDistance > maxHorizontal || Math.abs(deltaY) > maxVertical) {
+                event.setCancelled(true);
+                return;
+            }
+        }
+
+        // Movimiento ilegal sin Elytra ni Riptide
+        if (!player.isGliding() &&
+            (player.getInventory().getChestplate() == null ||
+            player.getInventory().getChestplate().getId() != Item.ELYTRA)) {
+            event.setCancelled(true);
         }
     }
 
-    private double getAllowedHorizontalSpeed(Player player) {
-        double base = 0.36; // velocidad base caminando
-        if (player.isSprinting()) base *= 1.3;
-        if (player.hasEffect(Effect.SPEED)) {
-            base += 0.06 * (player.getEffect(Effect.SPEED).getAmplifier() + 1);
+    @EventHandler
+    public void onEnchant(EnchantItemEvent event) {
+        Player player = event.getWho();
+        if (player == null) return;
+
+        // Cancelar bypass de niveles de XP
+        int levelCost = event.getLevelCost();
+        if (levelCost > player.getLevel()) {
+            event.setCancelled(true);
         }
-        return base;
+    }
+
+    @EventHandler
+    public void onInventoryTransaction(InventoryTransactionEvent event) {
+        // Cancelar cualquier encantamiento ilegal o manipulación de yunque
+        for (InventoryAction action : event.getTransaction().getActions()) {
+            Item source = action.getSourceItem();
+            if (source == null) continue;
+
+            // Eliminar encantamientos ilegales
+            for (Enchantment e : source.getEnchantments()) {
+                int maxLevel = Enchantment.getEnchantment(e.getTypeId()).getMaxLevel();
+                if (e.getLevel() > maxLevel) {
+                    source.removeEnchantment(e.getTypeId());
+                }
+            }
+        }
     }
 }
