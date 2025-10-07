@@ -1,5 +1,5 @@
 name: FlightCheck
-main: de.mariocst.revolutionarity.checks.Flight
+main: de.mariocst.revolutionarity.checks.antimove
 version: 1.0.0
 api: ["1.0.13"]
 author: tripu1404
