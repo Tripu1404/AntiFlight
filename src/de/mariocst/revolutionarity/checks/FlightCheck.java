@@ -7,8 +7,6 @@ import cn.nukkit.event.EventHandler;
 import cn.nukkit.event.player.PlayerMoveEvent;
 import cn.nukkit.event.player.PlayerInteractEvent;
 import cn.nukkit.event.inventory.EnchantItemEvent;
-import cn.nukkit.event.inventory.InventoryTransactionEvent;
-import cn.nukkit.inventory.Inventory;
 import cn.nukkit.item.Item;
 import cn.nukkit.item.enchantment.Enchantment;
 import cn.nukkit.level.Level;
@@ -52,7 +50,7 @@ public class FlightCheck extends PluginBase implements Listener {
         // Elytra boost con cohete (ID 401)
         if (item != null && item.getId() == 401) {
             if (player.getInventory().getChestplate() != null &&
-                    player.getInventory().getChestplate().getId() == Item.ELYTRA) {
+                player.getInventory().getChestplate().getId() == Item.ELYTRA) {
                 elytraBoost.put(player.getUniqueId(), System.currentTimeMillis() + 5000);
             }
         }
@@ -63,9 +61,12 @@ public class FlightCheck extends PluginBase implements Listener {
         Player player = event.getPlayer();
 
         if (player.isCreative() || player.isSpectator() || player.getAllowFlight()) return;
+
+        // Levitation / Slow Falling
         if (player.hasEffect(cn.nukkit.potion.Effect.LEVITATION) ||
             player.hasEffect(cn.nukkit.potion.Effect.SLOW_FALLING)) return;
 
+        // Riptide bypass
         Long bypassTime = riptideBypass.get(player.getUniqueId());
         if (bypassTime != null && bypassTime > System.currentTimeMillis()) return;
         else if (bypassTime != null) riptideBypass.remove(player.getUniqueId());
@@ -73,7 +74,6 @@ public class FlightCheck extends PluginBase implements Listener {
         double fromX = event.getFrom().getX();
         double fromY = event.getFrom().getY();
         double fromZ = event.getFrom().getZ();
-
         double toX = event.getTo().getX();
         double toY = event.getTo().getY();
         double toZ = event.getTo().getZ();
@@ -90,6 +90,7 @@ public class FlightCheck extends PluginBase implements Listener {
             return;
         }
 
+        // Saltos normales
         if (deltaY > 0 && deltaY <= 0.42 && horizontalDistance <= 0.5) return;
         if (deltaY < 0 && Math.abs(deltaY) <= 0.78 && horizontalDistance <= 0.5) return;
 
@@ -123,42 +124,15 @@ public class FlightCheck extends PluginBase implements Listener {
 
     @EventHandler
     public void onEnchant(EnchantItemEvent event) {
-        Player player = null;
-
-        // Obtener jugador desde la transacción
-        if (!event.getTransaction().getInventories().isEmpty()) {
-            for (Inventory inv : event.getTransaction().getInventories()) {
-                if (inv.getHolder() instanceof Player) {
-                    player = (Player) inv.getHolder();
-                    break;
-                }
-            }
-        }
+        Player player = event.getEnchanter(); // Ajuste a tu versión
 
         if (player == null) return;
 
-        int playerLevel = player.getExperienceManager().getLevel();
-        int levelCost = event.getExpLevelCost(); // Ajusta si tu versión no tiene este método
+        int playerLevel = player.getLevel(); // Devuelve int en tu versión
+        int levelCost = event.getLevelCost(); // Devuelve int en tu versión
 
         if (levelCost > playerLevel) {
-            event.setCancelled(true);
-        }
-    }
-
-    @EventHandler
-    public void onInventoryTransaction(InventoryTransactionEvent event) {
-        // Cancelar encantamientos ilegales en items
-        for (Inventory inv : event.getTransaction().getInventories()) {
-            for (Item item : inv.getContents().values()) {
-                if (item == null) continue;
-
-                for (Enchantment e : item.getEnchantments()) {
-                    int maxLevel = Enchantment.getEnchantment(e.getId()).getMaxLevel();
-                    if (e.getLevel() > maxLevel) {
-                        item.removeEnchantment(e); // Compatible con tu versión
-                    }
-                }
-            }
+            event.setCancelled(true); // Cancela si el jugador no tiene nivel suficiente
         }
     }
 }
