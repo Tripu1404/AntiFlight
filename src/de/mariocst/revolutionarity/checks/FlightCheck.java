@@ -12,8 +12,8 @@ import cn.nukkit.inventory.Inventory;
 import cn.nukkit.item.Item;
 import cn.nukkit.item.enchantment.Enchantment;
 import cn.nukkit.level.Level;
+import cn.nukkit.math.Vector3;
 import cn.nukkit.plugin.PluginBase;
-import cn.nukkit.utils.Vector3;
 
 import java.util.HashMap;
 import java.util.UUID;
@@ -83,7 +83,7 @@ public class FlightCheck extends PluginBase implements Listener {
         double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
         double deltaY = toY - fromY;
 
-        boolean onGround = player.onGround();
+        boolean onGround = player.isOnGround();
 
         // Guardar última posición en suelo
         if (onGround) {
@@ -125,11 +125,11 @@ public class FlightCheck extends PluginBase implements Listener {
 
     @EventHandler
     public void onEnchant(EnchantItemEvent event) {
-        Player player = event.getWho();
+        Player player = event.getPlayer();
         if (player == null) return;
 
         // Cancelar bypass de niveles de XP
-        int levelCost = event.getLevelCost();
+        int levelCost = event.getExpLevelCost();
         if (levelCost > player.getLevel()) {
             event.setCancelled(true);
         }
@@ -138,15 +138,15 @@ public class FlightCheck extends PluginBase implements Listener {
     @EventHandler
     public void onInventoryTransaction(InventoryTransactionEvent event) {
         // Cancelar cualquier encantamiento ilegal o manipulación de yunque
-        for (InventoryAction action : event.getTransaction().getActions()) {
-            Item source = action.getSourceItem();
-            if (source == null) continue;
+        for (Inventory inv : event.getTransaction().getInventories()) {
+            for (Item item : inv.getContents().values()) {
+                if (item == null) continue;
 
-            // Eliminar encantamientos ilegales
-            for (Enchantment e : source.getEnchantments()) {
-                int maxLevel = Enchantment.getEnchantment(e.getTypeId()).getMaxLevel();
-                if (e.getLevel() > maxLevel) {
-                    source.removeEnchantment(e.getTypeId());
+                for (Enchantment e : item.getEnchantments()) {
+                    int maxLevel = Enchantment.getEnchantment(e.getId()).getMaxLevel();
+                    if (e.getLevel() > maxLevel) {
+                        item.removeEnchantment(e.getId());
+                    }
                 }
             }
         }
