@@ -85,13 +85,11 @@ public class FlightCheck extends PluginBase implements Listener {
 
         boolean onGround = player.isOnGround();
 
-        // Guardar última posición en suelo
         if (onGround) {
             lastGroundPos.put(player, new double[]{toX, toY, toZ});
             return;
         }
 
-        // Saltos y caídas normales
         if (deltaY > 0 && deltaY <= 0.42 && horizontalDistance <= 0.5) return;
         if (deltaY < 0 && Math.abs(deltaY) <= 0.78 && horizontalDistance <= 0.5) return;
 
@@ -125,19 +123,31 @@ public class FlightCheck extends PluginBase implements Listener {
 
     @EventHandler
     public void onEnchant(EnchantItemEvent event) {
-        Player player = event.getPlayer();
+        Player player = null;
+
+        // Obtener jugador desde la transacción
+        if (!event.getTransaction().getInventories().isEmpty()) {
+            for (Inventory inv : event.getTransaction().getInventories()) {
+                if (inv.getHolder() instanceof Player) {
+                    player = (Player) inv.getHolder();
+                    break;
+                }
+            }
+        }
+
         if (player == null) return;
 
-        // Cancelar bypass de niveles de XP
-        int levelCost = event.getExpLevelCost();
-        if (levelCost > player.getLevel()) {
+        int playerLevel = player.getExperienceManager().getLevel();
+        int levelCost = event.getExpLevelCost(); // Ajusta si tu versión no tiene este método
+
+        if (levelCost > playerLevel) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onInventoryTransaction(InventoryTransactionEvent event) {
-        // Cancelar cualquier encantamiento ilegal o manipulación de yunque
+        // Cancelar encantamientos ilegales en items
         for (Inventory inv : event.getTransaction().getInventories()) {
             for (Item item : inv.getContents().values()) {
                 if (item == null) continue;
@@ -145,7 +155,7 @@ public class FlightCheck extends PluginBase implements Listener {
                 for (Enchantment e : item.getEnchantments()) {
                     int maxLevel = Enchantment.getEnchantment(e.getId()).getMaxLevel();
                     if (e.getLevel() > maxLevel) {
-                        item.removeEnchantment(e.getId());
+                        item.removeEnchantment(e); // Compatible con tu versión
                     }
                 }
             }
