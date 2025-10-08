@@ -1,4 +1,4 @@
-package tripu1404.anticheatpatch;
+package de.mariocst.revolutionarity.checks;
 
 import cn.nukkit.Player;
 import cn.nukkit.block.Block;
@@ -25,7 +25,7 @@ public class AntiCheatPatch extends PluginBase implements Listener {
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("✅ AntiCheatPatch activado (sin falsos positivos tras daño).");
+        getLogger().info("✅ AntiCheatPatch activado (sin falsos positivos tras daño ni en hielo).");
     }
 
     private boolean isInWaterOrLava(Player p) {
@@ -33,6 +33,13 @@ public class AntiCheatPatch extends PluginBase implements Listener {
         Block block = level.getBlock(p.getPosition().floor());
         int id = block.getId();
         return id == Block.WATER || id == Block.STILL_WATER || id == Block.LAVA || id == Block.STILL_LAVA;
+    }
+
+    private boolean isOnIce(Player p) {
+        Level level = p.getLevel();
+        Block block = level.getBlock(p.getPosition().floor());
+        int id = block.getId();
+        return id == Block.ICE || id == Block.PACKED_ICE || id == Block.BLUE_ICE || id == Block.FROSTED_ICE;
     }
 
     @EventHandler
@@ -48,12 +55,10 @@ public class AntiCheatPatch extends PluginBase implements Listener {
         Player p = e.getPlayer();
         Item i = e.getItem();
 
-        // Permitir Riptide temporalmente (bypass 1.5s)
         if (i != null && i.getId() == Item.TRIDENT && i.hasEnchantment(30) && isInWaterOrLava(p)) {
             riptideBypass.put(p.getUniqueId(), System.currentTimeMillis() + 1500);
         }
 
-        // Permitir impulso con cohete (Elytra) temporalmente (5s)
         if (i != null && i.getId() == 401) { // Firework Rocket
             if (p.getInventory().getChestplate() != null &&
                     p.getInventory().getChestplate().getId() == Item.ELYTRA) {
@@ -67,14 +72,10 @@ public class AntiCheatPatch extends PluginBase implements Listener {
         Player p = e.getPlayer();
         UUID id = p.getUniqueId();
 
-        // Excepciones legítimas
         if (p.isCreative() || p.isSpectator() || p.getAllowFlight()) return;
         if (p.hasEffect(Effect.LEVITATION) || p.hasEffect(Effect.SLOW_FALLING)) return;
 
-        // Gracia tras daño (para evitar falsos positivos)
         if (damageGrace.getOrDefault(id, 0L) > System.currentTimeMillis()) return;
-
-        // Bypass Riptide/Elytra temporal
         if (riptideBypass.getOrDefault(id, 0L) > System.currentTimeMillis()) return;
         if (elytraBoost.getOrDefault(id, 0L) > System.currentTimeMillis()) return;
 
@@ -105,14 +106,14 @@ public class AntiCheatPatch extends PluginBase implements Listener {
             airJumpTicks.put(id, 0);
         }
 
-        // 🔒 Anti-Flight / Hover
+        // 🔒 Anti-Hover
         if (!onGround && Math.abs(dy) < 0.01 && !isInWaterOrLava(p)) {
             e.setCancelled(true);
             return;
         }
 
-        // 🔒 Anti-Speed horizontal / Timer
-        if (dxz > 0.9 && !isInWaterOrLava(p)) {
+        // 🔒 Anti-Speed / Timer (excepto en hielo)
+        if (dxz > 0.9 && !isInWaterOrLava(p) && !isOnIce(p)) {
             e.setCancelled(true);
             return;
         }
