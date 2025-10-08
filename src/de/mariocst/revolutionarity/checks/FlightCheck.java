@@ -15,7 +15,7 @@ import cn.nukkit.potion.Effect;
 import java.util.HashMap;
 import java.util.UUID;
 
-public class AntiCheatPatch extends PluginBase implements Listener {
+public class FlightCheck extends PluginBase implements Listener {
 
     private final HashMap<UUID, Long> riptideBypass = new HashMap<>();
     private final HashMap<UUID, Long> elytraBoost = new HashMap<>();
