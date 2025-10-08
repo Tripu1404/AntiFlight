@@ -12,6 +12,7 @@ import cn.nukkit.level.Level;
 import cn.nukkit.math.Vector3;
 import cn.nukkit.plugin.PluginBase;
 
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.UUID;
 
@@ -60,7 +61,6 @@ public class FlightCheck extends PluginBase implements Listener {
         Player player = event.getPlayer();
 
         if (player.isCreative() || player.isSpectator() || player.getAllowFlight()) return;
-
         if (player.hasEffect(cn.nukkit.potion.Effect.LEVITATION) ||
             player.hasEffect(cn.nukkit.potion.Effect.SLOW_FALLING)) return;
 
@@ -114,21 +114,41 @@ public class FlightCheck extends PluginBase implements Listener {
         // Movimiento ilegal
         if (!player.isGliding() &&
             (player.getInventory().getChestplate() == null ||
-            player.getInventory().getChestplate().getId() != Item.ELYTRA)) {
+             player.getInventory().getChestplate().getId() != Item.ELYTRA)) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onEnchant(EnchantItemEvent event) {
-        Player player = event.getEnchanter();
-        if (player == null) return;
+        try {
+            Player player = (Player) event.getClass().getMethod("getEnchanter").invoke(event);
+            if (player == null) return;
 
-        int playerLevel = player.getExperienceLevel(); // ✅ correcto
-        int levelCost = event.getCost(); // ✅ compatible con versiones viejas
+            int playerLevel = player.getExperienceLevel();
 
-        if (levelCost > playerLevel) {
-            event.setCancelled(true);
+            // Detecta el método correcto mediante reflexión
+            int levelCost = 0;
+            Method getCost = null;
+
+            for (String methodName : new String[]{"getCost", "getExpLevelCost", "getLevelCost"}) {
+                try {
+                    getCost = event.getClass().getMethod(methodName);
+                    break;
+                } catch (NoSuchMethodException ignored) {}
+            }
+
+            if (getCost != null) {
+                Object result = getCost.invoke(event);
+                if (result instanceof Integer) levelCost = (Integer) result;
+            }
+
+            if (levelCost > playerLevel) {
+                event.setCancelled(true);
+            }
+
+        } catch (Exception e) {
+            getLogger().warning("Error verificando encantamiento: " + e.getMessage());
         }
     }
 }
