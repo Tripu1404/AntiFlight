@@ -1,4 +1,4 @@
-package tripu1404.anticheatpatch;
+package de.mariocst.revolutionarity.checks;
 
 import cn.nukkit.Player;
 import cn.nukkit.block.Block;
@@ -8,7 +8,6 @@ import cn.nukkit.event.player.PlayerMoveEvent;
 import cn.nukkit.event.player.PlayerInteractEvent;
 import cn.nukkit.event.inventory.EnchantItemEvent;
 import cn.nukkit.item.Item;
-import cn.nukkit.item.enchantment.Enchantment;
 import cn.nukkit.level.Level;
 import cn.nukkit.math.Vector3;
 import cn.nukkit.plugin.PluginBase;
@@ -40,14 +39,14 @@ public class FlightCheck extends PluginBase implements Listener {
         Player player = event.getPlayer();
         Item item = event.getItem();
 
-        // Riptide en agua
+        // Riptide
         if (item != null && item.getId() == Item.TRIDENT && item.hasEnchantment(30)) {
             if (isInWaterOrLava(player)) {
                 riptideBypass.put(player.getUniqueId(), System.currentTimeMillis() + 1800);
             }
         }
 
-        // Elytra boost con cohete (ID 401)
+        // Elytra boost
         if (item != null && item.getId() == 401) {
             if (player.getInventory().getChestplate() != null &&
                 player.getInventory().getChestplate().getId() == Item.ELYTRA) {
@@ -62,11 +61,9 @@ public class FlightCheck extends PluginBase implements Listener {
 
         if (player.isCreative() || player.isSpectator() || player.getAllowFlight()) return;
 
-        // Levitation / Slow Falling
         if (player.hasEffect(cn.nukkit.potion.Effect.LEVITATION) ||
             player.hasEffect(cn.nukkit.potion.Effect.SLOW_FALLING)) return;
 
-        // Riptide bypass
         Long bypassTime = riptideBypass.get(player.getUniqueId());
         if (bypassTime != null && bypassTime > System.currentTimeMillis()) return;
         else if (bypassTime != null) riptideBypass.remove(player.getUniqueId());
@@ -94,7 +91,7 @@ public class FlightCheck extends PluginBase implements Listener {
         if (deltaY > 0 && deltaY <= 0.42 && horizontalDistance <= 0.5) return;
         if (deltaY < 0 && Math.abs(deltaY) <= 0.78 && horizontalDistance <= 0.5) return;
 
-        // Elytra con boost
+        // Elytra
         if (player.getInventory().getChestplate() != null &&
             player.getInventory().getChestplate().getId() == Item.ELYTRA &&
             !player.isGliding()) {
@@ -114,7 +111,7 @@ public class FlightCheck extends PluginBase implements Listener {
             }
         }
 
-        // Movimiento ilegal sin Elytra ni Riptide
+        // Movimiento ilegal
         if (!player.isGliding() &&
             (player.getInventory().getChestplate() == null ||
             player.getInventory().getChestplate().getId() != Item.ELYTRA)) {
@@ -124,15 +121,14 @@ public class FlightCheck extends PluginBase implements Listener {
 
     @EventHandler
     public void onEnchant(EnchantItemEvent event) {
-        Player player = event.getEnchanter(); // Ajuste a tu versión
-
+        Player player = event.getEnchanter();
         if (player == null) return;
 
-        int playerLevel = player.getLevel(); // Devuelve int en tu versión
-        int levelCost = event.getLevelCost(); // Devuelve int en tu versión
+        int playerLevel = player.getExperienceLevel(); // ✅ correcto
+        int levelCost = event.getCost(); // ✅ compatible con versiones viejas
 
         if (levelCost > playerLevel) {
-            event.setCancelled(true); // Cancela si el jugador no tiene nivel suficiente
+            event.setCancelled(true);
         }
     }
 }
