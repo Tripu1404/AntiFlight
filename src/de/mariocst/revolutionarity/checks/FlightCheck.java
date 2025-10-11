@@ -2,16 +2,16 @@ package de.mariocst.revolutionarity.checks;
 
 import cn.nukkit.Player;
 import cn.nukkit.block.Block;
-import cn.nukkit.event.EventHandler;
 import cn.nukkit.event.Listener;
-import cn.nukkit.event.entity.EntityDamageEvent;
-import cn.nukkit.event.inventory.InventoryOpenEvent;
-import cn.nukkit.event.player.PlayerInteractEvent;
+import cn.nukkit.event.EventHandler;
 import cn.nukkit.event.player.PlayerMoveEvent;
+import cn.nukkit.event.player.PlayerInteractEvent;
+import cn.nukkit.event.inventory.InventoryOpenEvent;
+import cn.nukkit.event.entity.EntityDamageEvent;
 import cn.nukkit.inventory.Inventory;
 import cn.nukkit.item.Item;
 import cn.nukkit.level.Level;
-import cn.nukkit.potion.Effect;
+import cn.nukkit.math.Vector3;
 import cn.nukkit.plugin.PluginBase;
 
 import java.util.HashMap;
@@ -19,15 +19,16 @@ import java.util.UUID;
 
 public class FlightCheck extends PluginBase implements Listener {
 
+    private final HashMap<String, Vector3> lastPosition = new HashMap<>();
+    private final HashMap<String, Integer> airTicks = new HashMap<>();
     private final HashMap<UUID, Long> riptideBypass = new HashMap<>();
     private final HashMap<UUID, Long> elytraBoost = new HashMap<>();
-    private final HashMap<UUID, Integer> airJumpTicks = new HashMap<>();
     private final HashMap<UUID, Long> damageGrace = new HashMap<>();
 
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("✅ AntiCheatPatch activado: Glide/Timer/Fly/XP/Speed/AirJump.");
+        getLogger().info("[AntiMove] Activado silenciosamente con todos los checks.");
     }
 
     private boolean isInWaterOrLava(Player p) {
@@ -48,9 +49,8 @@ public class FlightCheck extends PluginBase implements Listener {
 
     @EventHandler
     public void onDamage(EntityDamageEvent e) {
-        if (e.getEntity() instanceof Player) {
-            Player p = (Player) e.getEntity();
-            damageGrace.put(p.getUniqueId(), System.currentTimeMillis() + 800); // 0.8s gracia
+        if (e.getEntity() instanceof Player p) {
+            damageGrace.put(p.getUniqueId(), System.currentTimeMillis() + 800);
         }
     }
 
@@ -62,12 +62,10 @@ public class FlightCheck extends PluginBase implements Listener {
         Item i = e.getItem();
         if (i == null) return;
 
-        // Riptide en agua
         if (i.getId() == Item.TRIDENT && i.hasEnchantment(30) && isInWaterOrLava(p)) {
             riptideBypass.put(p.getUniqueId(), System.currentTimeMillis() + 1500);
         }
 
-        // Elytra boost con cohete
         Item chest = p.getInventory().getChestplate();
         if (i.getId() == 401 && chest != null && chest.getId() == Item.ELYTRA) {
             elytraBoost.put(p.getUniqueId(), System.currentTimeMillis() + 5000);
@@ -75,86 +73,94 @@ public class FlightCheck extends PluginBase implements Listener {
     }
 
     @EventHandler
-    public void onMove(PlayerMoveEvent e) {
-        Player p = e.getPlayer();
-        if (p == null) return;
+    public void onMove(PlayerMoveEvent event) {
+        Player p = event.getPlayer();
+        if (p == null || p.isCreative() || p.isSpectator() || p.isOp()) return;
 
         UUID id = p.getUniqueId();
+        Vector3 from = event.getFrom();
+        Vector3 to = event.getTo();
 
-        if (p.isCreative() || p.isSpectator() || p.getAllowFlight()) return;
-        if (p.hasEffect(Effect.LEVITATION) || p.hasEffect(Effect.SLOW_FALLING)) return;
-        if (damageGrace.getOrDefault(id, 0L) > System.currentTimeMillis()) return;
-        if (riptideBypass.getOrDefault(id, 0L) > System.currentTimeMillis()) return;
-        if (elytraBoost.getOrDefault(id, 0L) > System.currentTimeMillis()) return;
-
-        double fromY = e.getFrom().getY();
-        double toY = e.getTo().getY();
-        double dy = toY - fromY;
-        double dxz = Math.sqrt(Math.pow(e.getTo().getX() - e.getFrom().getX(), 2)
-                + Math.pow(e.getTo().getZ() - e.getFrom().getZ(), 2));
-
-        boolean onGround = p.isOnGround();
-        boolean gliding = p.isGliding();
-
-        // Kick automático: Glide
-        if (gliding) {
-            p.kick("No se permite usar Glide / vuelo modificado.");
+        if (!lastPosition.containsKey(p.getName())) {
+            lastPosition.put(p.getName(), from);
+            airTicks.put(p.getName(), 0);
             return;
         }
 
-        // Kick automático: Fly ilegal
-        if (!onGround && dxz > 0.7 && dy < 0.4 && !isInWaterOrLava(p) && !isOnIce(p)) {
-            p.kick("No se permite usar Fly / vuelo ilegal.");
+        Vector3 last = lastPosition.get(p.getName());
+        double dx = to.x - last.x;
+        double dz = to.z - last.z;
+        double dy = to.y - last.y;
+
+        double horizontalSpeed = Math.sqrt(dx * dx + dz * dz);
+        double maxSpeed = 0.46;
+        if (p.isSprinting()) maxSpeed = 0.48;
+        if (isInWaterOrLava(p)) maxSpeed = 0.60;
+        if (p.isOnGround() && !p.isSprinting()) maxSpeed = 0.36;
+        if (isOnIce(p)) maxSpeed += 0.15;
+
+        long now = System.currentTimeMillis();
+
+        if (damageGrace.getOrDefault(id, 0L) > now ||
+            riptideBypass.getOrDefault(id, 0L) > now ||
+            elytraBoost.getOrDefault(id, 0L) > now) {
+            lastPosition.put(p.getName(), to);
+            airTicks.put(p.getName(), 0);
             return;
         }
 
-        // AirJump: bloquea sin kick
-        if (!onGround && dy > 0.45 && !isInWaterOrLava(p)) {
-            int count = airJumpTicks.getOrDefault(id, 0) + 1;
-            airJumpTicks.put(id, count);
-            if (count > 2) {
-                e.setCancelled(true);
-                return;
-            }
-        } else if (onGround) {
-            airJumpTicks.put(id, 0);
+        // ====== Anti Speed / Timer ======
+        if (horizontalSpeed > maxSpeed && !isOnIce(p)) {
+            event.setCancelled(true);
+            p.teleport(last);
+            return;
         }
 
-        // Movimiento horizontal imposible (Speed / Timer)
-        if (!isOnIce(p) && !isInWaterOrLava(p)) {
-            if (dxz > 0.85 && dy >= -0.3 && dy <= 0.5 && !onGround) {
-                p.kick("No se permite usar Timer / Speed modificados.");
-                return;
+        // ====== Anti Glide ======
+        int ticks = airTicks.getOrDefault(p.getName(), 0);
+        if (!p.isOnGround()) {
+            ticks++;
+            if (ticks > 15 && dy > -0.02 && dy < 0.02 && !isInWaterOrLava(p)) {
+                event.setCancelled(true);
+                p.teleport(last);
+                ticks = 0;
             }
+        } else {
+            ticks = 0;
         }
 
-        // Hover o caída lenta ilegal
-        if (!onGround && Math.abs(dy) < 0.01 && !isInWaterOrLava(p)) {
-            int ticks = airJumpTicks.getOrDefault(id, 0) + 1;
-            airJumpTicks.put(id, ticks);
-            if (ticks > 12) {
-                e.setCancelled(true);
-            }
+        // ====== Anti Fly ======
+        if (!p.isOnGround() && dy < 0.4 && horizontalSpeed > 0.7 && !isInWaterOrLava(p) && !isOnIce(p)) {
+            event.setCancelled(true);
+            p.teleport(last);
+            return;
         }
+
+        // ====== Anti AirJump ======
+        if (!p.isOnGround() && dy > 0.45 && !isInWaterOrLava(p)) {
+            event.setCancelled(true);
+            p.teleport(last);
+            return;
+        }
+
+        airTicks.put(p.getName(), ticks);
+        lastPosition.put(p.getName(), to);
     }
 
-    // Detecta uso de XP modificado
+    // ====== Anti XP Mod ======
     @EventHandler
     public void onInventoryOpen(InventoryOpenEvent e) {
-        if (!(e.getPlayer() instanceof Player)) return;
-        Player p = (Player) e.getPlayer();
-
+        if (!(e.getPlayer() instanceof Player p)) return;
         Inventory inv = e.getInventory();
         if (inv == null) return;
 
-        int playerLevel = p.getExperienceLevel(); // nivel real
-        int cost = 1; // Ajustar según versión
+        int playerLevel = p.getExperienceLevel();
+        int cost = 1;
+        String name = inv.getName().toLowerCase();
 
-        // Detecta mesa de encantamientos y yunque
-        String type = inv.getName().toLowerCase();
-        if (type.contains("enchant") || type.contains("yunque")) {
+        if (name.contains("enchant") || name.contains("anvil")) {
             if (playerLevel < cost) {
-                p.kick("No se permite usar XP modificado / niveles falsos.");
+                e.setCancelled(true);
             }
         }
     }
