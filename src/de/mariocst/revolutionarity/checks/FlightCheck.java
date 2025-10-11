@@ -49,7 +49,8 @@ public class FlightCheck extends PluginBase implements Listener {
 
     @EventHandler
     public void onDamage(EntityDamageEvent e) {
-        if (e.getEntity() instanceof Player p) {
+        if (e.getEntity() instanceof Player) {
+            Player p = (Player) e.getEntity();
             damageGrace.put(p.getUniqueId(), System.currentTimeMillis() + 800);
         }
     }
@@ -150,7 +151,9 @@ public class FlightCheck extends PluginBase implements Listener {
     // ====== Anti XP Mod ======
     @EventHandler
     public void onInventoryOpen(InventoryOpenEvent e) {
-        if (!(e.getPlayer() instanceof Player p)) return;
+        Player p = e.getPlayer();
+        if (p == null) return;
+
         Inventory inv = e.getInventory();
         if (inv == null) return;
 
