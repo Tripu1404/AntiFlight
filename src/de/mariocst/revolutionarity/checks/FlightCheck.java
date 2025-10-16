@@ -38,7 +38,7 @@ public class FlightCheck extends PluginBase implements Listener {
                     }
 
                     // Ignorar natación
-                    if (player.isInsideOfWater() || player.isSwimming() || player.isClimbing() || player.isOnLadder()) continue;
+                    if (player.isInsideOfWater() || player.isSwimming()) continue;
 
                     boolean inAir = !player.isOnGround() && !player.isGliding();
 
@@ -97,8 +97,8 @@ public class FlightCheck extends PluginBase implements Listener {
 
         if (player.isCreative() || player.isSpectator() || player.getAllowFlight()) return;
 
-        // Ignorar natación y escaleras
-        if (player.isInsideOfWater() || player.isSwimming() || player.isClimbing() || player.isOnLadder()) return;
+        // Ignorar natación
+        if (player.isInsideOfWater() || player.isSwimming()) return;
 
         long now = System.currentTimeMillis();
 
