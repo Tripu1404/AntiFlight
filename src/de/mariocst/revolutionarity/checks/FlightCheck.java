@@ -73,7 +73,7 @@ public class FlightCheck implements Listener {
 
         // --- ANTI-FLY / saltos ilegales ---
         if (!player.isOnGround() && !player.isGliding()) {
-            // caída normal: ignorar
+            // caída normal ignorada
             if (dy < 0 && verticalBps > 2.0 && verticalBps < 3.0 && horizontalDistance <= 0.8) return;
             // salto natural
             if (dy > 0 && dy <= 0.6 && horizontalDistance <= 0.8) return;
@@ -108,10 +108,11 @@ public class FlightCheck implements Listener {
 
             if (ticks > 20) { // 1 segundo
                 double damage = airDamage.getOrDefault(id, 6.0);
-                player.attack(damage, new cn.nukkit.event.entity.EntityDamageEvent(
+                float dmg = (float) damage; // conversión float
+                player.attack(dmg, new cn.nukkit.event.entity.EntityDamageEvent(
                         player,
                         cn.nukkit.event.entity.EntityDamageEvent.DamageCause.VOID,
-                        damage
+                        dmg
                 ));
                 airDamage.put(id, damage * 2);
             }
