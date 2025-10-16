@@ -21,10 +21,6 @@ public class FlightCheck extends PluginBase implements Listener {
     private final HashMap<UUID, Double> airDamage = new HashMap<>();
     private final HashMap<UUID, Double> lastVerticalSpeedBps = new HashMap<>();
 
-    // IDs de efectos en Nukkit clásico
-    private static final int EFFECT_LEVITATION = 15;
-    private static final int EFFECT_SLOW_FALLING = 17;
-
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
@@ -41,8 +37,6 @@ public class FlightCheck extends PluginBase implements Listener {
                         airDamage.remove(id);
                         continue;
                     }
-
-                    if (player.hasEffect(EFFECT_LEVITATION) || player.hasEffect(EFFECT_SLOW_FALLING)) continue;
 
                     boolean inAir = !player.isOnGround() && !player.isGliding() && !player.isInsideOfWater();
                     double verticalBps = lastVerticalSpeedBps.getOrDefault(id, 0.0);
@@ -104,7 +98,6 @@ public class FlightCheck extends PluginBase implements Listener {
         UUID id = player.getUniqueId();
 
         if (player.isCreative() || player.isSpectator() || player.getAllowFlight()) return;
-        if (player.hasEffect(EFFECT_LEVITATION) || player.hasEffect(EFFECT_SLOW_FALLING)) return;
 
         Long bypassTime = riptideBypass.get(id);
         if (bypassTime != null && bypassTime > System.currentTimeMillis()) return;
