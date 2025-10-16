@@ -1,170 +1,126 @@
 package de.mariocst.revolutionarity.checks;
 
 import cn.nukkit.Player;
-import cn.nukkit.block.Block;
-import cn.nukkit.event.Listener;
 import cn.nukkit.event.EventHandler;
-import cn.nukkit.event.player.PlayerMoveEvent;
+import cn.nukkit.event.Listener;
 import cn.nukkit.event.player.PlayerInteractEvent;
-import cn.nukkit.event.inventory.InventoryOpenEvent;
-import cn.nukkit.event.entity.EntityDamageEvent;
-import cn.nukkit.inventory.Inventory;
+import cn.nukkit.event.player.PlayerMoveEvent;
 import cn.nukkit.item.Item;
-import cn.nukkit.level.Level;
+import cn.nukkit.potion.Effect;
 import cn.nukkit.math.Vector3;
-import cn.nukkit.plugin.PluginBase;
 
 import java.util.HashMap;
 import java.util.UUID;
 
-public class FlightCheck extends PluginBase implements Listener {
+public class FlightCheck implements Listener {
 
-    private final HashMap<String, Vector3> lastPosition = new HashMap<>();
-    private final HashMap<String, Integer> airTicks = new HashMap<>();
     private final HashMap<UUID, Long> riptideBypass = new HashMap<>();
     private final HashMap<UUID, Long> elytraBoost = new HashMap<>();
-    private final HashMap<UUID, Long> damageGrace = new HashMap<>();
-
-    @Override
-    public void onEnable() {
-        getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("[AntiMove] Activado silenciosamente con todos los checks.");
-    }
-
-    private boolean isInWaterOrLava(Player p) {
-        Level level = p.getLevel();
-        if (level == null) return false;
-        Block block = level.getBlock(p.getPosition().floor());
-        int id = block.getId();
-        return id == Block.WATER || id == Block.STILL_WATER || id == Block.LAVA || id == Block.STILL_LAVA;
-    }
-
-    private boolean isOnIce(Player p) {
-        Level level = p.getLevel();
-        if (level == null) return false;
-        Block block = level.getBlock(p.getPosition().floor());
-        int id = block.getId();
-        return id == Block.ICE || id == Block.PACKED_ICE || id == Block.BLUE_ICE || id == Block.FROSTED_ICE;
-    }
+    private final HashMap<UUID, Integer> airTicks = new HashMap<>();
+    private final HashMap<UUID, Double> airDamage = new HashMap<>();
+    private final HashMap<UUID, Double> lastVerticalSpeedBps = new HashMap<>();
 
     @EventHandler
-    public void onDamage(EntityDamageEvent e) {
-        if (e.getEntity() instanceof Player) {
-            Player p = (Player) e.getEntity();
-            damageGrace.put(p.getUniqueId(), System.currentTimeMillis() + 800);
-        }
-    }
+    public void onRightClick(PlayerInteractEvent event) {
+        Player player = event.getPlayer();
+        Item item = event.getItem();
 
-    @EventHandler
-    public void onInteract(PlayerInteractEvent e) {
-        Player p = e.getPlayer();
-        if (p == null) return;
-
-        Item i = e.getItem();
-        if (i == null) return;
-
-        if (i.getId() == Item.TRIDENT && i.hasEnchantment(30) && isInWaterOrLava(p)) {
-            riptideBypass.put(p.getUniqueId(), System.currentTimeMillis() + 1500);
+        // Riptide
+        if (item != null && item.getId() == Item.TRIDENT && item.hasEnchantment(30)) {
+            if (player.isInsideOfWater() || player.isSwimming()) {
+                riptideBypass.put(player.getUniqueId(), System.currentTimeMillis() + 2200);
+            }
         }
 
-        Item chest = p.getInventory().getChestplate();
-        if (i.getId() == 401 && chest != null && chest.getId() == Item.ELYTRA) {
-            elytraBoost.put(p.getUniqueId(), System.currentTimeMillis() + 5000);
+        // Elytra + cohete
+        if (item != null && item.getId() == 401) {
+            if (player.getInventory().getChestplate() != null &&
+                    player.getInventory().getChestplate().getId() == Item.ELYTRA) {
+                elytraBoost.put(player.getUniqueId(), System.currentTimeMillis() + 6500);
+            }
         }
     }
 
     @EventHandler
     public void onMove(PlayerMoveEvent event) {
-        Player p = event.getPlayer();
-        if (p == null || p.isCreative() || p.isSpectator() || p.isOp()) return;
+        Player player = event.getPlayer();
+        UUID id = player.getUniqueId();
 
-        UUID id = p.getUniqueId();
-        Vector3 from = event.getFrom();
-        Vector3 to = event.getTo();
+        if (player.isCreative() || player.isSpectator() || player.getAllowFlight()) return;
+        if (player.hasEffect(Effect.LEVITATION) || player.hasEffect(Effect.SLOW_FALLING)) return;
 
-        if (!lastPosition.containsKey(p.getName())) {
-            lastPosition.put(p.getName(), from);
-            airTicks.put(p.getName(), 0);
-            return;
-        }
+        Long bypassTime = riptideBypass.get(id);
+        if (bypassTime != null && bypassTime > System.currentTimeMillis()) return;
+        else if (bypassTime != null && bypassTime <= System.currentTimeMillis()) riptideBypass.remove(id);
 
-        Vector3 last = lastPosition.get(p.getName());
-        double dx = to.x - last.x;
-        double dz = to.z - last.z;
-        double dy = to.y - last.y;
+        double fromX = event.getFrom().getX();
+        double fromY = event.getFrom().getY();
+        double fromZ = event.getFrom().getZ();
 
-        double horizontalSpeed = Math.sqrt(dx * dx + dz * dz);
-        double maxSpeed = 0.46;
-        if (p.isSprinting()) maxSpeed = 0.48;
-        if (isInWaterOrLava(p)) maxSpeed = 0.60;
-        if (p.isOnGround() && !p.isSprinting()) maxSpeed = 0.36;
-        if (isOnIce(p)) maxSpeed += 0.15;
+        double toX = event.getTo().getX();
+        double toY = event.getTo().getY();
+        double toZ = event.getTo().getZ();
 
-        long now = System.currentTimeMillis();
+        double dx = toX - fromX;
+        double dz = toZ - fromZ;
+        double dy = toY - fromY;
 
-        if (damageGrace.getOrDefault(id, 0L) > now ||
-            riptideBypass.getOrDefault(id, 0L) > now ||
-            elytraBoost.getOrDefault(id, 0L) > now) {
-            lastPosition.put(p.getName(), to);
-            airTicks.put(p.getName(), 0);
-            return;
-        }
+        double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
 
-        // ====== Anti Speed / Timer ======
-        if (horizontalSpeed > maxSpeed && !isOnIce(p)) {
-            event.setCancelled(true);
-            p.teleport(last);
-            return;
-        }
+        // Guardamos velocidad vertical en bloques/segundo
+        double verticalBps = Math.abs(dy) * 20.0;
+        lastVerticalSpeedBps.put(id, verticalBps);
 
-        // ====== Anti Glide ======
-        int ticks = airTicks.getOrDefault(p.getName(), 0);
-        if (!p.isOnGround()) {
-            ticks++;
-            if (ticks > 15 && dy > -0.02 && dy < 0.02 && !isInWaterOrLava(p)) {
+        // --- ANTI-FLY / saltos ilegales ---
+        if (!player.isOnGround() && !player.isGliding()) {
+            // caída normal: ignorar
+            if (dy < 0 && verticalBps > 2.0 && verticalBps < 3.0 && horizontalDistance <= 0.8) return;
+            // salto natural
+            if (dy > 0 && dy <= 0.6 && horizontalDistance <= 0.8) return;
+
+            // Elytra equipada pero no planeando
+            if (player.getInventory().getChestplate() != null &&
+                    player.getInventory().getChestplate().getId() == Item.ELYTRA &&
+                    !player.isGliding()) {
+                double maxHorizontal = 1.0;
+                double maxVertical = 1.0;
+
+                Long boostTime = elytraBoost.get(id);
+                if (boostTime != null && boostTime > System.currentTimeMillis()) {
+                    maxHorizontal = 2.5;
+                    maxVertical = 1.5;
+                }
+
+                if (horizontalDistance > maxHorizontal || Math.abs(dy) > maxVertical) {
+                    event.setCancelled(true);
+                    return;
+                }
+            }
+
+            // Mini-fly / saltos ilegales
+            if (horizontalDistance > 1.0 || Math.abs(dy) > 1.0) {
                 event.setCancelled(true);
-                p.teleport(last);
-                ticks = 0;
             }
+
+            // DAÑO PROGRESIVO
+            int ticks = airTicks.getOrDefault(id, 0) + 1;
+            airTicks.put(id, ticks);
+
+            if (ticks > 20) { // 1 segundo
+                double damage = airDamage.getOrDefault(id, 6.0);
+                player.attack(damage, new cn.nukkit.event.entity.EntityDamageEvent(
+                        player,
+                        cn.nukkit.event.entity.EntityDamageEvent.DamageCause.VOID,
+                        damage
+                ));
+                airDamage.put(id, damage * 2);
+            }
+
+            return;
         } else {
-            ticks = 0;
-        }
-
-        // ====== Anti Fly ======
-        if (!p.isOnGround() && dy < 0.4 && horizontalSpeed > 0.7 && !isInWaterOrLava(p) && !isOnIce(p)) {
-            event.setCancelled(true);
-            p.teleport(last);
-            return;
-        }
-
-        // ====== Anti AirJump ======
-        if (!p.isOnGround() && dy > 0.45 && !isInWaterOrLava(p)) {
-            event.setCancelled(true);
-            p.teleport(last);
-            return;
-        }
-
-        airTicks.put(p.getName(), ticks);
-        lastPosition.put(p.getName(), to);
-    }
-
-    // ====== Anti XP Mod ======
-    @EventHandler
-    public void onInventoryOpen(InventoryOpenEvent e) {
-        Player p = e.getPlayer();
-        if (p == null) return;
-
-        Inventory inv = e.getInventory();
-        if (inv == null) return;
-
-        int playerLevel = p.getExperienceLevel();
-        int cost = 1;
-        String name = inv.getName().toLowerCase();
-
-        if (name.contains("enchant") || name.contains("anvil")) {
-            if (playerLevel < cost) {
-                e.setCancelled(true);
-            }
+            // Reinicio al tocar suelo o planear
+            airTicks.remove(id);
+            airDamage.remove(id);
         }
     }
 }
