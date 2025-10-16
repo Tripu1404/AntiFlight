@@ -37,7 +37,10 @@ public class FlightCheck extends PluginBase implements Listener {
                         continue;
                     }
 
-                    boolean inAir = !player.isOnGround() && !player.isGliding() && !player.isInsideOfWater();
+                    // Ignorar natación
+                    if (player.isInsideOfWater() || player.isSwimming()) continue;
+
+                    boolean inAir = !player.isOnGround() && !player.isGliding();
 
                     if (inAir) {
                         int ticks = airTicks.getOrDefault(id, 0) + 1;
@@ -94,9 +97,12 @@ public class FlightCheck extends PluginBase implements Listener {
 
         if (player.isCreative() || player.isSpectator() || player.getAllowFlight()) return;
 
+        // Ignorar natación
+        if (player.isInsideOfWater() || player.isSwimming()) return;
+
         long now = System.currentTimeMillis();
 
-        // Bypasses Elytra / Riptide
+        // Bypass Elytra / Riptide
         if ((riptideBypass.get(id) != null && riptideBypass.get(id) > now) ||
             (elytraBoost.get(id) != null && elytraBoost.get(id) > now)) {
             return;
@@ -109,12 +115,13 @@ public class FlightCheck extends PluginBase implements Listener {
 
         lastVerticalSpeedBps.put(id, Math.abs(dy * 20.0));
 
-        // Anti-Fly: solo si vuela hacia arriba o horizontalmente en el aire
+        // Anti-Fly: solo si está en aire y no es salto normal
         if (!player.isOnGround() && !player.isGliding()) {
-            boolean movingUp = dy > 0.01; // vuelo hacia arriba
-            boolean movingHorizontal = horizontalDistance > 1.0; // horizontal anormal
+            boolean normalJump = dy > 0 && dy <= 1.0; // saltos normales permitidos
+            boolean flyingUp = dy > 1.0; // vuelo hacia arriba
+            boolean flyingHoriz = horizontalDistance > 1.0; // horizontal anormal
 
-            if (movingUp || movingHorizontal) {
+            if (!normalJump && (flyingUp || flyingHoriz)) {
                 event.setCancelled(true);
             }
         }
