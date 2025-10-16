@@ -38,7 +38,7 @@ public class FlightCheck extends PluginBase implements Listener {
                     }
 
                     // Ignorar natación
-                    if (player.isInsideOfWater() || player.isSwimming()) continue;
+                    if (player.isInsideOfWater() || player.isSwimming() || player.isClimbing() || player.isOnLadder()) continue;
 
                     boolean inAir = !player.isOnGround() && !player.isGliding();
 
@@ -97,8 +97,8 @@ public class FlightCheck extends PluginBase implements Listener {
 
         if (player.isCreative() || player.isSpectator() || player.getAllowFlight()) return;
 
-        // Ignorar natación
-        if (player.isInsideOfWater() || player.isSwimming()) return;
+        // Ignorar natación y escaleras
+        if (player.isInsideOfWater() || player.isSwimming() || player.isClimbing() || player.isOnLadder()) return;
 
         long now = System.currentTimeMillis();
 
@@ -115,11 +115,13 @@ public class FlightCheck extends PluginBase implements Listener {
 
         lastVerticalSpeedBps.put(id, Math.abs(dy * 20.0));
 
-        // Anti-Fly: solo si está en aire y no es salto normal
-        if (!player.isOnGround() && !player.isGliding()) {
+        // Detecta si realmente está en aire
+        boolean inAir = !player.isOnGround() && !player.isGliding();
+
+        if (inAir) {
             boolean normalJump = dy > 0 && dy <= 1.0; // saltos normales permitidos
             boolean flyingUp = dy > 1.0; // vuelo hacia arriba
-            boolean flyingHoriz = horizontalDistance > 1.0; // horizontal anormal
+            boolean flyingHoriz = horizontalDistance > 1.0; // vuelo horizontal ilegítimo
 
             if (!normalJump && (flyingUp || flyingHoriz)) {
                 event.setCancelled(true);
