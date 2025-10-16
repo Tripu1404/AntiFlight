@@ -26,7 +26,7 @@ public class FlightCheck extends PluginBase implements Listener {
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
 
-        // Tarea repetitiva: aplica daño progresivo cada 1 segundo
+        // Tarea repetitiva: aplica daño progresivo cada segundo
         getServer().getScheduler().scheduleRepeatingTask(this, new Task() {
             @Override
             public void onRun(int currentTick) {
@@ -71,7 +71,7 @@ public class FlightCheck extends PluginBase implements Listener {
                     }
                 }
             }
-        }, 20, 20); // cada 20 ticks = 1 segundo
+        }, 20); // repetir cada 20 ticks = 1 segundo
     }
 
     @EventHandler
@@ -79,12 +79,14 @@ public class FlightCheck extends PluginBase implements Listener {
         Player player = event.getPlayer();
         Item item = event.getItem();
 
+        // Riptide
         if (item != null && item.getId() == Item.TRIDENT && item.hasEnchantment(30)) {
             if (player.isInsideOfWater() || player.isSwimming()) {
                 riptideBypass.put(player.getUniqueId(), System.currentTimeMillis() + 2200);
             }
         }
 
+        // Elytra + cohete
         if (item != null && item.getId() == 401) {
             if (player.getInventory().getChestplate() != null &&
                     player.getInventory().getChestplate().getId() == Item.ELYTRA) {
